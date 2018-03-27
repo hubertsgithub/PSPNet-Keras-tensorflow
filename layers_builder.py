@@ -42,13 +42,6 @@ class Interp(layers.Layer):
         return config
 
 
-# def Interp(x, shape):
-#    new_height, new_width = shape
-#    resized = ktf.image.resize_images(x, [new_height, new_width],
-#                                      align_corners=True)
-#    return resized
-
-
 def residual_conv(prev, level, pad=1, lvl=1, sub_lvl=1, modify_stride=False):
     lvl = str(lvl)
     sub_lvl = str(sub_lvl)
@@ -218,8 +211,6 @@ def interp_block(prev_layer, level, feature_map_shape, input_shape):
                         use_bias=False)(prev_layer)
     prev_layer = BN(name=names[1])(prev_layer)
     prev_layer = Activation('relu')(prev_layer)
-    # prev_layer = Lambda(Interp, arguments={
-    #                    'shape': feature_map_shape})(prev_layer)
     prev_layer = Interp(feature_map_shape)(prev_layer)
     return prev_layer
 
@@ -263,11 +254,17 @@ def build_pspnet(nb_classes, resnet_layers, input_shape, activation='softmax'):
     x = Dropout(0.1)(x)
 
     x = Conv2D(nb_classes, (1, 1), strides=(1, 1), name="conv6")(x)
-    # x = Lambda(Interp, arguments={'shape': (
-    #    input_shape[0], input_shape[1])})(x)
+
+    ## Since no bilinear interpolation layer in keras js,
+    # replace Interp with
+    # 1) Upsample2D
+    # 2) Deconv2D
+    # 3) Upsample2D + Conv2D
+
     x = Interp([input_shape[0], input_shape[1]])(x)
     x = Activation('softmax')(x)
 
+    # Outputs has shape: (H, W, K), where K = number of classes
     model = Model(inputs=inp, outputs=x)
 
     # Solver
@@ -275,4 +272,5 @@ def build_pspnet(nb_classes, resnet_layers, input_shape, activation='softmax'):
     model.compile(optimizer=sgd,
                   loss='categorical_crossentropy',
                   metrics=['accuracy'])
+    model.summary()
     return model

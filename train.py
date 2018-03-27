@@ -1,6 +1,5 @@
 from os import path
 from os.path import join
-from scipy.misc import imresize
 from python_utils.preprocessing import data_generator_s31
 from python_utils.callbacks import callbacks
 from keras.models import load_model
@@ -26,7 +25,7 @@ def set_npy_weights(weights_path, model):
             scale = weights[layer.name]['scale'].reshape(-1)
             offset = weights[layer.name]['offset'].reshape(-1)
 
-            self.model.get_layer(layer.name).set_weights(
+            model.get_layer(layer.name).set_weights(
                 [scale, offset, mean, variance])
 
         elif layer.name[:4] == 'conv' and not layer.name[-4:] == 'relu':
@@ -47,7 +46,11 @@ def set_npy_weights(weights_path, model):
 
 def train(datadir, logdir, input_size, nb_classes, resnet_layers, batchsize, weights, initial_epoch, pre_trained, sep):
     if args.weights:
-        model = load_model(weights)
+        model = PSPNet(nb_classes=nb_classes,
+                       resnet_layers=resnet_layers,
+                       input_shape=input_size,
+                       weights=weights).model
+        #model = load_model(weights)
     else:
         model = layers.build_pspnet(nb_classes=nb_classes,
                                     resnet_layers=resnet_layers,
@@ -65,13 +68,17 @@ def train(datadir, logdir, input_size, nb_classes, resnet_layers, batchsize, wei
 class PSPNet(object):
     """Pyramid Scene Parsing Network by Hengshuang Zhao et al 2017"""
 
-    def __init__(self, nb_classes, resnet_layers, input_shape):
+    def __init__(self, nb_classes, resnet_layers, input_shape, weights=None):
         self.input_shape = input_shape
         self.model = layers.build_pspnet(nb_classes=nb_classes,
-                                         layers=resnet_layers,
+                                         resnet_layers=resnet_layers,
                                          input_shape=self.input_shape)
-        print("Load pre-trained weights")
-        self.model.load_weights("weights/keras/pspnet101_voc2012.h5")
+
+        if weights is not None:
+            print("Load pre-trained weights from {}".format(weights))
+            self.model.load_weights(weights)
+            #self.model.load_weights("weights/keras/pspnet101_voc2012.h5")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -94,5 +101,6 @@ if __name__ == '__main__':
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 
-    train(args.datadir, args.logdir, (640, 480), args.classes, args.resnet_layers,
+    #train(args.datadir, args.logdir, (640, 480), args.classes, args.resnet_layers,
+    train(args.datadir, args.logdir, (args.input_dim, args.input_dim), args.classes, args.resnet_layers,
           args.batch, args.weights, args.initial_epoch, args.model, args.sep)
